@@ -1,16 +1,26 @@
-# PostgreSQL E-commerce Database Agent
+# PostgreSQL E-commerce Database Agents
 
-This project extends the LangChain OpenRouter integration with a SQL database agent that can query a PostgreSQL e-commerce database.
+This project provides two SQL database agent implementations for querying a PostgreSQL e-commerce database:
+1. **LangChain Agent** - Using LangChain framework with OpenRouter
+2. **Pydantic AI Agent** - Using Pydantic AI with SQLAlchemy
 
 ## Features
 
+### Common Features
 - **PostgreSQL Integration**: Uses PostgreSQL 15+ as the database
-- **Readonly Security**: Agent operates with readonly database credentials
+- **Readonly Security**: Agents operate with readonly database credentials
 - **E-commerce Schema**: Sample database with customers, products, orders, and order items
 - **Automated Setup**: Python script to create and populate the database
 - **Smart Data Management**: Checks existing data and only inserts if needed
 - **Configurable Thresholds**: Adjustable minimum row counts for data population
 - **Error Handling**: Comprehensive error handling throughout
+
+### Pydantic AI Agent Features
+- **SQLAlchemy 2.0**: Modern ORM integration with context managers
+- **Schema Preloading**: Full database schema loaded on startup
+- **Token Management**: Automatic schema truncation if exceeds 2000 tokens
+- **Type-Safe Results**: Single Pydantic model with type field (query/error/info)
+- **Comprehensive Tests**: Test suite covering query patterns and edge cases
 
 ## Prerequisites
 
@@ -44,7 +54,12 @@ sudo systemctl enable postgresql
 3. **Dependencies**: Install required Python packages
 
 ```bash
-pip install langchain langchain-openai langchain-community psycopg2-binary python-dotenv
+pip install -r requirements.txt
+```
+
+Or install manually:
+```bash
+pip install langchain langchain-openai langchain-community psycopg2-binary python-dotenv pydantic-ai sqlalchemy tiktoken pytest
 ```
 
 ## Setup Instructions
@@ -94,15 +109,47 @@ MIN_ORDERS = 100        # Minimum orders to maintain
 MIN_ORDER_ITEMS = 150   # Minimum order items to maintain
 ```
 
-### 3. Run the SQL Agent
+### 3. Run the SQL Agents
 
-Start the interactive SQL agent:
+#### LangChain Agent
+Start the interactive LangChain SQL agent:
 
 ```bash
 python sql_agent.py
 ```
 
-### 4. Remove the Database (Optional)
+#### Pydantic AI Agent
+Start the interactive Pydantic AI SQL agent:
+
+```bash
+python pydantic_sql_agent.py
+```
+
+The Pydantic AI agent includes:
+- SQLAlchemy 2.0 with context managers for connection handling
+- Full schema preloading with automatic token monitoring
+- Type-safe results with a single QueryResult model
+- Better structured error handling
+
+### 4. Run Tests (Pydantic AI Agent)
+
+Run the comprehensive test suite:
+
+```bash
+pytest test_pydantic_agent.py -v
+```
+
+Test categories:
+- **Basic Queries**: Testing the 5 example patterns from sql_agent.py
+- **Complex Joins**: Multi-table joins with 2-3 tables
+- **Subqueries**: WHERE, SELECT, and correlated subqueries
+- **NULL Handling**: IS NULL, COALESCE, and NULL filtering
+- **Aggregations**: GROUP BY, HAVING, multiple aggregation functions
+- **Edge Cases**: Security (rejecting INSERT/UPDATE/DELETE), empty results, complex filters
+- **Data Types**: DECIMAL, TIMESTAMP, string pattern matching
+- **Sorting**: ORDER BY with multiple columns, LIMIT clauses
+
+### 5. Remove the Database (Optional)
 
 If you need to completely remove the database and start fresh, run:
 
@@ -188,15 +235,64 @@ If you get a connection error:
 
 ## Files
 
-- `sql_agent.py` - Main SQL agent application
+### Agent Implementations
+- `sql_agent.py` - LangChain SQL agent application
+- `pydantic_sql_agent.py` - Pydantic AI SQL agent with SQLAlchemy
+
+### Database Scripts
 - `setup_database.py` - Database creation and population script
 - `remove_database.py` - Database removal and cleanup script
+
+### Testing
+- `test_pydantic_agent.py` - Comprehensive test suite for Pydantic AI agent
+
+### Other
 - `opentouter_test.py` - Original OpenRouter test script
 - `.env` - Environment variables (credentials)
+- `requirements.txt` - Python dependencies
 - `README.md` - This file
+
+## Implementation Comparison
+
+| Feature | LangChain Agent | Pydantic AI Agent |
+|---------|----------------|-------------------|
+| Framework | LangChain | Pydantic AI |
+| Database Access | SQLDatabase utility | SQLAlchemy 2.0 |
+| Connection Management | Automatic | Context manager |
+| Schema Loading | On-demand | Preloaded on startup |
+| Token Monitoring | No | Yes (with auto-truncation) |
+| Result Type | String/dict | Type-safe Pydantic model |
+| Tool Structure | Built-in toolkit | Single custom tool |
+| Test Coverage | None | Comprehensive (90+ tests) |
+| Error Handling | Built-in | Structured with type field |
+
+## Pydantic AI Agent Architecture
+
+### DatabaseContext Class
+- **Purpose**: Manages database connections and schema loading
+- **Context Manager**: `get_session()` provides automatic transaction handling
+- **Schema Preloading**: Loads full schema on initialization
+- **Token Management**: Monitors and truncates schema if needed
+- **Query Execution**: `execute_query()` handles SQL execution with result formatting
+
+### QueryResult Model
+Single Pydantic model with type field:
+- `type: "query"` - Successful query with results
+- `type: "error"` - Error occurred (with message)
+- `type: "info"` - Informational message or clarification
+- `content: str` - Main content (results, error, or info)
+- `details: str | None` - Additional details (SQL query, etc.)
+
+### Agent Tool
+- `execute_sql_query()` - Single tool for SQL execution
+- Security validation (SELECT only)
+- Structured error handling
+- Result formatting with row limits
 
 ## Notes
 
+- Both implementations use Claude Opus 4.5 via OpenRouter by default
 - The setup script is idempotent - safe to run multiple times
 - Data insertion only occurs when row counts are below thresholds
-- The agent uses Claude Opus 4.5 via OpenRouter by default
+- Pydantic AI agent monitors token usage and truncates schema if > 2000 tokens
+- Both agents are read-only for security (SELECT queries only)
